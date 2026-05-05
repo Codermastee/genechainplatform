@@ -1,0 +1,16 @@
+flask
+requests
+psycopg2-binary
+python-dotenv
+matplotlib
+pandas
+numpy
+werkzeug
+pytesseract
+Pillow
+cryptography
+shamir-mnemonic
+pycryptodome
+python-paillier
+pyotp
+qrcode[pil]

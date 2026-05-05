@@ -1,0 +1,83 @@
+<html>
+<head>
+    <title>GeneNFT | 2FA Setup</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="../static/css/style2.css" rel="stylesheet">
+    <style>
+        .setup-container {
+            max-width: 500px;
+            margin: 80px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .qr-frame {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 12px;
+            display: inline-block;
+            margin: 20px 0;
+            border: 2px dashed #cbd5e1;
+        }
+        .otp-input {
+            width: 100%;
+            padding: 15px;
+            font-size: 24px;
+            letter-spacing: 10px;
+            text-align: center;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .btn-enable {
+            width: 100%;
+            padding: 15px;
+            background: #4f46e5;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .btn-enable:hover { background: #4338ca; }
+        .success-msg { color: #16a34a; font-weight: 600; margin-bottom: 20px; }
+        .error-msg { color: #dc2626; font-weight: 600; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="setup-container">
+        <h2><i class="fa fa-shield-alt"></i> Two-Factor Authentication</h2>
+        
+        {% if msg == 'success' %}
+            <div class="success-msg">
+                <i class="fa fa-check-circle"></i> 2FA is now enabled on your account!
+            </div>
+            <p>You will now be required to provide a Google Authenticator code during approvals.</p>
+            <br>
+            <a href="{{ back_url }}" class="btn-enable" style="text-decoration: none; display: block;">Return to Dashboard</a>
+        {% else %}
+            <p style="color: #64748b;">Step 1: Scan this QR code with your Google Authenticator or Authy app.</p>
+            
+            <div class="qr-frame">
+                <img src="data:image/png;base64,{{ qr_code }}" alt="Scan QR Code">
+            </div>
+
+            <p style="color: #64748b;">Step 2: Enter the 6-digit code from your app to verify.</p>
+            
+            {% if msg == 'fail' %}
+                <div class="error-msg">Invalid code. Please try again.</div>
+            {% endif %}
+
+            <form method="POST">
+                <input type="text" name="code" class="otp-input" placeholder="000000" maxlength="6" required>
+                <button type="submit" class="btn-enable">Verify and Enable 2FA</button>
+            </form>
+        {% endif %}
+    </div>
+</body>
+</html>

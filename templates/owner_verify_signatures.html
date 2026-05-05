@@ -1,0 +1,758 @@
+<html>
+<head>
+<title>GeneNFT | Digital Signature Verification</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Verify RSA-PSS digital signatures for genomic data requests on GeneNFT.">
+<link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link href="../static/css/style2.css" rel="stylesheet">
+<style>
+/* ===== SUMMARY CARDS ===== */
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+.summary-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 22px 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: transform 0.25s, box-shadow 0.25s;
+}
+.summary-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+}
+.summary-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: #fff;
+    flex-shrink: 0;
+}
+.summary-icon.total   { background: linear-gradient(135deg, #667eea, #764ba2); }
+.summary-icon.full    { background: linear-gradient(135deg, #11998e, #38ef7d); }
+.summary-icon.partial { background: linear-gradient(135deg, #f7971e, #ffd200); }
+.summary-icon.pend    { background: linear-gradient(135deg, #eb3349, #f45c43); }
+.summary-info h3 { margin: 0; font-size: 26px; font-weight: 700; color: #1a1a2e; }
+.summary-info p  { margin: 2px 0 0; font-size: 13px; color: #888; font-weight: 400; }
+
+/* ===== REQUEST CARDS ===== */
+.req-card {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    margin-bottom: 24px;
+    overflow: hidden;
+    transition: box-shadow 0.3s;
+}
+.req-card:hover {
+    box-shadow: 0 8px 28px rgba(0,0,0,0.12);
+}
+.req-header {
+    background: linear-gradient(135deg, #1a237e, #283593);
+    color: #fff;
+    padding: 18px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.req-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+.req-header .rid-badge {
+    background: rgba(255,255,255,0.18);
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+}
+.req-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px 24px;
+    padding: 18px 24px;
+    background: #f8f9fc;
+    border-bottom: 1px solid #eef0f5;
+    font-size: 13px;
+}
+.req-meta .label { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+.req-meta .value { font-weight: 600; color: #2c3e50; word-break: break-all; }
+
+/* ===== SIGNATURE CHAIN ===== */
+.sig-chain {
+    padding: 24px;
+}
+.sig-chain-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a237e;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.chain-steps {
+    display: flex;
+    gap: 0;
+    align-items: stretch;
+    flex-wrap: wrap;
+}
+.chain-step {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+    padding: 16px 18px;
+    border: 2px solid #e0e3ea;
+    border-radius: 12px;
+    background: #fafbfd;
+    transition: all 0.3s;
+    cursor: pointer;
+    margin-right: 12px;
+    margin-bottom: 12px;
+}
+.chain-step:last-child { margin-right: 0; }
+.chain-step::after {
+    content: '→';
+    position: absolute;
+    right: -14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 18px;
+    color: #bbb;
+    font-weight: 700;
+}
+.chain-step:last-child::after { display: none; }
+
+.chain-step.verified {
+    border-color: #38ef7d;
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+}
+.chain-step.failed {
+    border-color: #f45c43;
+    background: linear-gradient(135deg, #fef2f2, #fee2e2);
+}
+.chain-step.pending-sig {
+    border-color: #ffd200;
+    background: linear-gradient(135deg, #fffbeb, #fef3c7);
+}
+
+.step-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.step-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: #fff;
+    flex-shrink: 0;
+}
+.step-icon.res  { background: #667eea; }
+.step-icon.own  { background: #11998e; }
+.step-icon.lab  { background: #f7971e; }
+.step-icon.adm  { background: #eb3349; }
+.step-title { font-weight: 700; font-size: 13px; color: #333; }
+.step-signer { font-size: 11px; color: #888; }
+
+.step-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+.step-status.ok   { color: #16a34a; }
+.step-status.fail { color: #dc2626; }
+.step-status.wait { color: #ca8a04; }
+
+.step-detail {
+    font-size: 11px;
+    color: #666;
+    line-height: 1.5;
+    display: none;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #e5e7eb;
+    word-break: break-all;
+}
+.step-detail.open { display: block; }
+.step-detail .dl-label {
+    color: #888;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    margin-top: 6px;
+}
+.step-detail .dl-value {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #333;
+    background: #f1f3f5;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-top: 2px;
+    word-break: break-all;
+}
+
+/* ===== VERIFY BUTTON ===== */
+.btn-verify {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s;
+    margin-top: 8px;
+}
+.btn-verify:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+.btn-verify:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Verify animation */
+@keyframes pulse-verify {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+.verifying {
+    animation: pulse-verify 0.8s ease-in-out infinite;
+}
+
+/* ===== EMPTY STATE ===== */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #aaa;
+}
+.empty-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    display: block;
+    color: #ddd;
+}
+
+/* ===== TOGGLE EXPAND ===== */
+.toggle-hint {
+    font-size: 10px;
+    color: #aaa;
+    margin-top: 4px;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+    .chain-steps { flex-direction: column; }
+    .chain-step::after { display: none; }
+    .chain-step { margin-right: 0; }
+    .summary-grid { grid-template-columns: 1fr 1fr; }
+}
+/* ===== PROTECTION GATE ===== */
+.auth-gate {
+    max-width: 520px;
+    margin: 40px auto;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+.auth-gate-header {
+    background: linear-gradient(135deg, #1a237e, #283593, #3949ab);
+    color: #fff;
+    padding: 28px 32px;
+    text-align: center;
+}
+.auth-gate-header .lock-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    margin-bottom: 14px;
+    backdrop-filter: blur(10px);
+}
+.auth-gate-header h2 { margin: 0 0 6px; font-size: 20px; font-weight: 700; }
+.auth-gate-header p { margin: 0; font-size: 13px; opacity: 0.85; }
+.auth-gate-body {
+    padding: 28px 32px 32px;
+}
+.auth-gate-body label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 6px;
+}
+.auth-gate-body input[type="text"],
+.auth-gate-body input[type="password"] {
+    width: 100%;
+    padding: 12px 14px;
+    border: 2px solid #e0e3ea;
+    border-radius: 10px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    transition: 0.3s;
+    margin-bottom: 18px;
+}
+.auth-gate-body input:focus {
+    border-color: #3949ab;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(57,73,171,0.15);
+}
+.btn-authenticate {
+    width: 100%;
+    background: linear-gradient(135deg, #1a237e, #3949ab);
+    color: #fff;
+    border: none;
+    padding: 14px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.btn-authenticate:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(26,35,126,0.3);
+}
+.auth-alert {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 18px;
+    font-size: 13px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+.auth-alert.error {
+    background: #fef2f2;
+    border-left: 4px solid #dc2626;
+    color: #991b1b;
+}
+.auth-alert.success {
+    background: #f0fdf4;
+    border-left: 4px solid #16a34a;
+    color: #166534;
+}
+.auth-alert i { margin-top: 2px; flex-shrink: 0; }
+.auth-info {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+    font-size: 12px;
+    color: #1e40af;
+    line-height: 1.6;
+}
+.auth-info i { margin-right: 4px; }
+
+/* challenge proof card */
+.challenge-proof {
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    border: 2px solid #86efac;
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 24px;
+}
+.challenge-proof h4 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    color: #166534;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.challenge-proof .cp-row {
+    font-size: 11px;
+    margin-bottom: 4px;
+}
+.challenge-proof .cp-label {
+    color: #15803d;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 10px;
+}
+.challenge-proof .cp-value {
+    font-family: 'Courier New', monospace;
+    color: #166534;
+    background: rgba(255,255,255,0.7);
+    padding: 3px 6px;
+    border-radius: 4px;
+    word-break: break-all;
+}
+</style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <h2><i class="fa fa-dna"></i> GeneNFT</h2>
+    <a href="/owner_home"><i class="fa fa-chart-line"></i> Dashboard</a>
+    <a href="/owner_key"><i class="fa fa-key"></i> Key Management</a>
+    <a href="/owner_upload"><i class="fa fa-upload"></i> Upload Genome</a>
+    <a href="/owner_files"><i class="fa fa-folder-open"></i> My Uploads</a>
+    <a href="/owner_requests"><i class="fa fa-coins"></i> Data Requests</a>
+    <a href="/owner_block"><i class="fa fa-shield-alt"></i> Integrity Verification</a>
+    <a href="/owner_verify_signatures" style="background:rgba(255,255,255,0.15);border-left:4px solid white;"><i class="fa fa-file-signature"></i> Signature Verification</a>
+    {% if not owner_data.totp_enabled %}
+    <a href="/setup_2fa"><i class="fa fa-user-lock"></i> 2FA Security</a>
+    {% endif %}
+    <a href="/logout"><i class="fa fa-sign-out-alt"></i> Logout</a>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+    <h3><i class="fa fa-file-signature"></i> Digital Signature Verification</h3>
+    <div class="profile-menu">
+        <span class="profile-name">
+            <i class="fa fa-user-circle"></i> {{ owner_data['name'] if owner_data else '' }}
+        </span>
+        <a href="/logout" class="logout-btn">
+            <i class="fa fa-sign-out-alt"></i> Logout
+        </a>
+    </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+    <div class="page-title" style="font-size:18px;font-weight:600;color:#2c3e50;margin-bottom:24px;">
+        <i class="fa fa-shield-halved"></i> RSA-PSS Digital Signature Verification
+        <p style="font-size:13px;color:#888;font-weight:400;margin-top:4px;">
+            Real cryptographic verification of every signature on your data requests.
+            Each signature is verified against the signer's RSA-2048 public key using PSS padding with SHA-256.
+        </p>
+    </div>
+
+    {% if not authenticated %}
+    <!-- ═══════════ PROTECTION GATE ═══════════ -->
+    <div class="auth-gate" id="auth-gate">
+        <div class="auth-gate-header">
+            <div class="lock-icon"><i class="fa fa-lock"></i></div>
+            <h2>Identity Verification Required</h2>
+            <p>Enter your Master Hash Key to prove ownership. A live RSA signature challenge will verify your key pair.</p>
+        </div>
+        <div class="auth-gate-body">
+
+            {% if auth_msg == "wrong_key" %}
+            <div class="auth-alert error">
+                <i class="fa fa-times-circle"></i>
+                <div><strong>Invalid Master Key.</strong> The key you entered does not match. Check your email for the correct Master Hash Key.</div>
+            </div>
+            {% elif auth_msg == "missing" %}
+            <div class="auth-alert error">
+                <i class="fa fa-exclamation-circle"></i>
+                <div><strong>Master Key Required.</strong> Please enter your Master Hash Key to proceed.</div>
+            </div>
+            {% elif auth_msg == "sig_challenge_fail" %}
+            <div class="auth-alert error">
+                <i class="fa fa-shield-exclamation"></i>
+                <div><strong>RSA Challenge Failed.</strong> The server could not verify the signature against your public key. Your key pair may be out of sync. Please regenerate your keys.</div>
+            </div>
+            {% elif auth_msg == "sig_challenge_error" %}
+            <div class="auth-alert error">
+                <i class="fa fa-exclamation-triangle"></i>
+                <div><strong>Signature Challenge Error.</strong> A server error occurred during RSA verification. Please try again or contact the administrator.</div>
+            </div>
+            {% endif %}
+
+            <div class="auth-info">
+                <i class="fa fa-info-circle"></i>
+                <strong>Why is this needed?</strong><br>
+                This page contains sensitive cryptographic data. To prevent unauthorized access by
+                anyone who only knows your password, you must prove you are the legitimate key holder.
+                Your Master Hash Key was sent to your registered email when you generated your keys.
+            </div>
+
+            <form method="POST" action="/owner_verify_signatures">
+                <label for="master_key"><i class="fa fa-key"></i> Master Hash Key</label>
+                <input type="password" id="master_key" name="master_key"
+                       placeholder="Enter your Master Hash Key" required autocomplete="off">
+
+                <button type="submit" class="btn-authenticate">
+                    <i class="fa fa-fingerprint"></i> Verify Identity &amp; Access Signatures
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- ═══════════ AUTHENTICATED — CHALLENGE PROOF ═══════════ -->
+    {% if challenge_ok %}
+    <div class="challenge-proof">
+        <h4><i class="fa fa-shield-check"></i> Identity Verified — RSA Signature Challenge Passed</h4>
+        <div class="cp-row">
+            <span class="cp-label">Challenge Nonce:</span>
+            <span class="cp-value">{{ challenge_nonce }}</span>
+        </div>
+        <div class="cp-row">
+            <span class="cp-label">Signature (preview):</span>
+            <span class="cp-value">{{ challenge_sig }}</span>
+        </div>
+        <div class="cp-row">
+            <span class="cp-label">Verification:</span>
+            <span class="cp-value" style="color:#16a34a;font-weight:700;">✓ RSA-PSS SHA-256 — Valid</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- SUMMARY DASHBOARD -->
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="summary-icon total"><i class="fa fa-layer-group"></i></div>
+            <div class="summary-info">
+                <h3>{{ total }}</h3>
+                <p>Total Requests</p>
+            </div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon full"><i class="fa fa-check-double"></i></div>
+            <div class="summary-info">
+                <h3>{{ fully_signed }}</h3>
+                <p>Fully Verified</p>
+            </div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon partial"><i class="fa fa-hourglass-half"></i></div>
+            <div class="summary-info">
+                <h3>{{ partially_signed }}</h3>
+                <p>Partially Signed</p>
+            </div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon pend"><i class="fa fa-clock"></i></div>
+            <div class="summary-info">
+                <h3>{{ pending }}</h3>
+                <p>Pending</p>
+            </div>
+        </div>
+    </div>
+
+    {% if verified_requests %}
+        {% for item in verified_requests %}
+        {% set req  = item.req %}
+        {% set sigs = item.sigs %}
+        <div class="req-card" id="req-card-{{ req.id }}">
+            <!-- HEADER -->
+            <div class="req-header">
+                <h3><i class="fa fa-file-medical"></i> {{ req.title }}</h3>
+                <span class="rid-badge">Request #{{ req.id }}</span>
+            </div>
+
+            <!-- META -->
+            <div class="req-meta">
+                <div>
+                    <div class="label">Dataset ID</div>
+                    <div class="value">{{ req.dataset_id }}</div>
+                </div>
+                <div>
+                    <div class="label">Owner</div>
+                    <div class="value">{{ req.owner_id }}</div>
+                </div>
+                <div>
+                    <div class="label">Researcher</div>
+                    <div class="value">{{ req.researcher_id }}</div>
+                </div>
+                <div>
+                    <div class="label">Disease</div>
+                    <div class="value">{{ req.diseases or '—' }}</div>
+                </div>
+                <div>
+                    <div class="label">Price</div>
+                    <div class="value" style="color:#16a34a;">&#8377; {{ req.price }}</div>
+                </div>
+                <div>
+                    <div class="label">Status</div>
+                    <div class="value">{{ req.status or 'Pending' }}</div>
+                </div>
+            </div>
+
+            <!-- SIGNATURE CHAIN -->
+            <div class="sig-chain">
+                <div class="sig-chain-title">
+                    <i class="fa fa-link"></i> 4-Party Signature Chain (click to expand details)
+                </div>
+                <div class="chain-steps">
+                    {% for stype, info in [("researcher", sigs.researcher), ("owner", sigs.owner), ("lab", sigs.lab), ("admin", sigs.admin)] %}
+                    <div class="chain-step {{ 'verified' if info.ok == true else ('failed' if info.ok == false else 'pending-sig') }}"
+                         onclick="toggleDetail(this)" id="step-{{ req.id }}-{{ stype }}">
+                        <div class="step-header">
+                            <div class="step-icon {{ 'res' if stype=='researcher' else ('own' if stype=='owner' else ('lab' if stype=='lab' else 'adm')) }}">
+                                <i class="fa {{ 'fa-microscope' if stype=='researcher' else ('fa-user-shield' if stype=='owner' else ('fa-flask' if stype=='lab' else 'fa-user-tie')) }}"></i>
+                            </div>
+                            <div>
+                                <div class="step-title">{{ stype|capitalize }}</div>
+                                <div class="step-signer">{{ info.signer or '—' }}</div>
+                            </div>
+                        </div>
+
+                        {% if info.ok == true %}
+                        <div class="step-status ok">
+                            <i class="fa fa-check-circle"></i> Verified ✓
+                        </div>
+                        {% elif info.ok == false %}
+                        <div class="step-status fail">
+                            <i class="fa fa-times-circle"></i> Failed ✗
+                        </div>
+                        {% else %}
+                        <div class="step-status wait">
+                            <i class="fa fa-hourglass-half"></i> Awaiting
+                        </div>
+                        {% endif %}
+
+                        <div class="toggle-hint"><i class="fa fa-chevron-down"></i> Click for details</div>
+
+                        <!-- EXPANDABLE DETAILS -->
+                        <div class="step-detail" id="detail-{{ req.id }}-{{ stype }}">
+                            {% if info.fingerprint %}
+                            <div class="dl-label">Public Key Fingerprint (SHA-256)</div>
+                            <div class="dl-value">{{ info.fingerprint }}</div>
+                            {% endif %}
+
+                            {% if info.sig_preview %}
+                            <div class="dl-label">Signature (Base64 preview)</div>
+                            <div class="dl-value">{{ info.sig_preview }}</div>
+                            {% endif %}
+
+                            {% if info.message %}
+                            <div class="dl-label">Signed Message Payload</div>
+                            <div class="dl-value">{{ info.message }}</div>
+                            {% endif %}
+
+                            {% if info.error %}
+                            <div class="dl-label">Error / Note</div>
+                            <div class="dl-value" style="color:#dc2626;">{{ info.error }}</div>
+                            {% endif %}
+
+                            {% if info.ok != None %}
+                            <button class="btn-verify" onclick="event.stopPropagation(); verifyNow({{ req.id }}, '{{ stype }}', this)">
+                                <i class="fa fa-rotate"></i> Re-verify Now
+                            </button>
+                            {% endif %}
+                            <div class="verify-result" id="vr-{{ req.id }}-{{ stype }}" style="margin-top:8px;font-size:12px;"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="req-card">
+            <div class="empty-state">
+                <i class="fa fa-file-signature"></i>
+                No data requests found. Signatures will appear here once researchers request access to your datasets.
+            </div>
+        </div>
+    {% endif %}
+
+    {% endif %}
+
+    <div class="footer">
+        GeneNFT | Composable Genomic NFTs — RSA-PSS SHA-256 Digital Signatures
+    </div>
+
+</div>
+
+<script>
+function toggleDetail(el) {
+    var detail = el.querySelector('.step-detail');
+    if (detail) {
+        detail.classList.toggle('open');
+        var hint = el.querySelector('.toggle-hint i');
+        if (hint) {
+            hint.className = detail.classList.contains('open')
+                ? 'fa fa-chevron-up'
+                : 'fa fa-chevron-down';
+        }
+    }
+}
+
+function verifyNow(rid, signerType, btn) {
+    var resultDiv = document.getElementById('vr-' + rid + '-' + signerType);
+    btn.disabled = true;
+    btn.classList.add('verifying');
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Verifying...';
+    resultDiv.innerHTML = '';
+
+    fetch('/api/verify_signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rid: rid, signer_type: signerType })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.classList.remove('verifying');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa fa-rotate"></i> Re-verify Now';
+
+        if (data.ok === true) {
+            resultDiv.innerHTML =
+                '<span style="color:#16a34a;font-weight:600;">' +
+                '<i class="fa fa-check-circle"></i> VERIFIED — Signature is cryptographically valid</span>' +
+                '<br><span style="color:#888;">Verified at: ' + data.verified_at + '</span>' +
+                '<br><span style="color:#888;">Key fingerprint: ' + (data.fingerprint || '—') + '</span>';
+        } else if (data.ok === false) {
+            resultDiv.innerHTML =
+                '<span style="color:#dc2626;font-weight:600;">' +
+                '<i class="fa fa-times-circle"></i> FAILED — ' + (data.error || 'Signature mismatch') + '</span>' +
+                '<br><span style="color:#888;">Checked at: ' + data.verified_at + '</span>';
+        } else {
+            resultDiv.innerHTML =
+                '<span style="color:#ca8a04;font-weight:600;">' +
+                '<i class="fa fa-exclamation-triangle"></i> ' + (data.error || 'Not signed yet') + '</span>';
+        }
+    })
+    .catch(function(err) {
+        btn.classList.remove('verifying');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa fa-rotate"></i> Re-verify Now';
+        resultDiv.innerHTML = '<span style="color:#dc2626;">Network error: ' + err + '</span>';
+    });
+}
+</script>
+
+</body>
+</html>

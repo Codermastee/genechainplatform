@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab Sign Request – GeneNFT</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
+        header { background: #1a237e; color: #fff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+        header h1 { font-size: 1.3rem; }
+        header span { font-size: 0.9rem; opacity: 0.8; }
+        .container { max-width: 1100px; margin: 32px auto; padding: 0 20px; }
+        .alert { padding: 14px 18px; border-radius: 6px; margin-bottom: 24px; font-size: 0.95rem; border-left: 5px solid; }
+        .alert-success { background: #e8f5e9; border-color: #388e3c; color: #256029; }
+        .alert-danger  { background: #fdecea; border-color: #c62828; color: #b71c1c; }
+        .alert-warning { background: #fff8e1; border-color: #f9a825; color: #7a5c00; }
+        .verify-detail { margin-top: 8px; font-size: 0.84rem; font-family: monospace; opacity: 0.85; word-break: break-all; }
+        .section-title { font-size: 1.1rem; font-weight: 700; color: #1a237e; margin-bottom: 14px; padding-bottom: 6px; border-bottom: 2px solid #c5cae9; }
+        .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); padding: 20px 24px; margin-bottom: 16px; }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+        .card-header .rid { font-size: 0.8rem; color: #888; margin-top: 3px; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
+        .badge-pending  { background: #fff3e0; color: #e65100; }
+        .badge-signed   { background: #e8f5e9; color: #2e7d32; }
+        .badge-approved { background: #e8f5e9; color: #2e7d32; }
+        .meta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 20px; font-size: 0.88rem; margin-bottom: 14px; }
+        .meta-grid .label { color: #888; font-size: 0.78rem; margin-bottom: 2px; }
+        .meta-grid .value { font-weight: 600; word-break: break-all; }
+        .sig-preview { font-family: monospace; font-size: 0.78rem; background: #f5f5f5; padding: 6px 10px; border-radius: 4px; color: #555; word-break: break-all; margin-bottom: 10px; }
+        .btn-sign { background: #1a237e; color: #fff; border: none; padding: 10px 24px; border-radius: 5px; font-size: 0.9rem; cursor: pointer; transition: background 0.2s; margin-top: 4px; }
+        .btn-sign:hover { background: #283593; }
+        .empty-state { text-align: center; color: #aaa; padding: 36px 0; font-size: 0.95rem; }
+        .signed-table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+        .signed-table th { background: #e8eaf6; color: #1a237e; text-align: left; padding: 10px 12px; font-weight: 600; }
+        .signed-table td { padding: 10px 12px; border-bottom: 1px solid #eee; vertical-align: top; }
+        .signed-table tr:hover td { background: #fafafa; }
+        .mono { font-family: monospace; font-size: 0.8rem; }
+        .nav-link { display: inline-block; margin-bottom: 20px; color: #1a237e; font-size: 0.9rem; text-decoration: none; }
+        .nav-link:hover { text-decoration: underline; }
+        .owner-sig-info { font-size: 0.84rem; background: #e8f5e9; border-left: 4px solid #388e3c; padding: 8px 12px; border-radius: 4px; color: #256029; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🔬 GeneNFT – Lab Assistant Signing</h1>
+    <span>Logged in as: <strong>{{ uname }}</strong> &nbsp;|&nbsp; <a href="/logout" style="color:#90caf9;">Logout</a></span>
+</header>
+
+<div class="container">
+
+    <a href="/res_home" class="nav-link">← Back to Dashboard</a>
+
+    {% if msg == 'signed' %}
+    <div class="alert alert-success">
+        ✅ Request signed successfully with your RSA-PSS key. It is now awaiting Admin approval.
+    </div>
+    {% elif msg == 'sig_fail' %}
+    <div class="alert alert-danger">
+        ❌ Signing failed. A server error occurred. Please try again or contact Admin.
+    </div>
+    {% elif msg == 'not_found' %}
+    <div class="alert alert-warning">
+        ⚠️ Request not found in database.
+    </div>
+    {% endif %}
+
+    <!-- PENDING: requests with owner sig but no lab sig yet -->
+    <div class="section-title">⏳ Requests Awaiting Your Signature</div>
+
+    {% if pending %}
+        {% for req in pending %}
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <strong>{{ req['title'] }}</strong>
+                    <div class="rid">Request ID: #{{ req['id'] }}</div>
+                </div>
+                <span class="badge badge-pending">Needs Lab Signature</span>
+            </div>
+
+            <div class="meta-grid">
+                <div><div class="label">Dataset ID</div><div class="value">{{ req['dataset_id'] }}</div></div>
+                <div><div class="label">Owner</div><div class="value">{{ req['owner_id'] }}</div></div>
+                <div><div class="label">Researcher</div><div class="value">{{ req['researcher_id'] }}</div></div>
+                <div><div class="label">Owner Name</div><div class="value">{{ req['owner_name'] or '—' }}</div></div>
+            </div>
+
+            <div class="owner-sig-info">
+                ✅ Owner has accepted this request. Your RSA-PSS signature is required to proceed to Admin approval.
+            </div>
+
+            <div class="sig-preview">🔑 Owner Sig: {{ req['owner_signature'][:80] if req['owner_signature'] else 'N/A' }}…</div>
+
+            <form method="POST" action="/lab_sign_request">
+                <input type="hidden" name="rid" value="{{ req['id'] }}">
+                <button type="submit" class="btn-sign">🖊️ Sign This Request (RSA-PSS)</button>
+            </form>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="card"><div class="empty-state">No pending requests require your signature right now.</div></div>
+    {% endif %}
+
+    <!-- SIGNED HISTORY -->
+    <div class="section-title" style="margin-top:36px;">✅ Requests You Have Signed</div>
+
+    {% if signed_list %}
+    <div class="card" style="padding:0; overflow:hidden;">
+        <table class="signed-table">
+            <thead>
+                <tr>
+                    <th>Req #</th>
+                    <th>Dataset</th>
+                    <th>Owner</th>
+                    <th>Researcher</th>
+                    <th>Lab Sig (preview)</th>
+                    <th>Admin Approval</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for r in signed_list %}
+            <tr>
+                <td>{{ r['id'] }}</td>
+                <td>{{ r['title'] }}</td>
+                <td>{{ r['owner_id'] }}</td>
+                <td>{{ r['researcher_id'] }}</td>
+                <td class="mono">{{ r['lab_signature'][:50] if r['lab_signature'] else '—' }}…</td>
+                <td>
+                    {% if r['admin_approval'] == 'Approved' %}
+                        <span class="badge badge-approved">✅ Approved</span>
+                    {% else %}
+                        <span class="badge badge-pending">⏳ Pending Admin</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <div class="card"><div class="empty-state">You have not signed any requests yet.</div></div>
+    {% endif %}
+
+</div>
+</body>
+</html>
