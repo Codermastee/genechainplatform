@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # main.py
 import os
 import base64
