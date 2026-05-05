@@ -11,6 +11,6 @@ Pillow
 cryptography
 shamir-mnemonic
 pycryptodome
-python-paillier
+phe
 pyotp
 qrcode[pil]
