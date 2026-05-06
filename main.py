@@ -2131,6 +2131,7 @@ def owner_upload():
             # Create user folder
             user_folder = create_user_directory(uname)
 
+            os.makedirs("static/css/ups", exist_ok=True)
             file.save(os.path.join("static/css/ups", filename))
             gh=ghash("static/css/ups/"+filename)
             vff=uname+".vcf"
