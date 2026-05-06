@@ -3272,12 +3272,102 @@ def res_pay():
                     # OCR Verification using pytesseract
                     try:
                         import io
-                        image = Image.open(io.BytesIO(file_bytes))
-                        ocr_text = pytesseract.image_to_string(image).lower()
-                        
-                        expected_amount_str = str(int(float(req_data['price']))) if float(req_data['price']).is_integer() else str(float(req_data['price']))
-                        # The screenshot text must contain BOTH the target UPI ID and the exact amount
-                        if expected_amount_str not in ocr_text or PLATFORM_UPI.lower() not in ocr_text:
+                        from PIL import ImageEnhance, ImageFilter, ImageOps
+
+                        # ── Helper: run OCR on one image variant ──────────────────────
+                        def _ocr(img):
+                            results = set()
+                            for psm in ("6", "3", "11", "12"):
+                                try:
+                                    t = pytesseract.image_to_string(
+                                        img, config=f"--psm {psm} --oem 3"
+                                    )
+                                    results.add(t.lower())
+                                except Exception:
+                                    pass
+                            return " ".join(results)
+
+                        # ── Helper: build preprocessed image variants ─────────────────
+                        def _variants(raw_img):
+                            imgs = []
+
+                            # 1. Original converted to RGB
+                            base = raw_img.convert("RGB")
+
+                            # 2. Upscale if too small
+                            w, h = base.size
+                            if w < 1200:
+                                scale = 1200 / w
+                                base = base.resize(
+                                    (int(w * scale), int(h * scale)), Image.LANCZOS
+                                )
+
+                            # Variant A – grayscale + high contrast
+                            gray = base.convert("L")
+                            v_a = ImageEnhance.Contrast(gray).enhance(3.0)
+                            v_a = v_a.filter(ImageFilter.SHARPEN)
+                            imgs.append(v_a)
+
+                            # Variant B – inverted (handles dark-mode / white-on-dark)
+                            imgs.append(ImageOps.invert(gray))
+
+                            # Variant C – binarised (global threshold)
+                            v_c = gray.point(lambda p: 255 if p > 128 else 0, "1").convert("L")
+                            imgs.append(v_c)
+
+                            # Variant D – binarised inverted
+                            imgs.append(ImageOps.invert(v_c))
+
+                            # Variant E – brightness boost then grayscale
+                            v_e = ImageEnhance.Brightness(base).enhance(1.5).convert("L")
+                            imgs.append(v_e)
+
+                            return imgs
+
+                        # ── Run OCR across ALL variants and merge text ────────────────
+                        raw_image = Image.open(io.BytesIO(file_bytes))
+                        all_ocr_text = ""
+                        for variant in _variants(raw_image):
+                            all_ocr_text += " " + _ocr(variant)
+
+                        # Debug — visible in server logs so you can see what Tesseract read
+                        print("=" * 60)
+                        print("OCR RAW OUTPUT:")
+                        print(all_ocr_text)
+                        print("=" * 60)
+
+                        # ── Normalise: strip ₹, commas, spaces, newlines ──────────────
+                        ocr_clean = re.sub(r"[₹\s,\n\r]", "", all_ocr_text)
+
+                        # ── Amount matching ───────────────────────────────────────────
+                        price_val = float(req_data['price'])
+                        amount_variants = {
+                            str(int(price_val)),          # "1000"
+                            f"{price_val:.2f}",           # "1000.00"
+                            f"{price_val:.1f}",           # "1000.0"
+                            str(price_val),               # "1000.0"
+                        }
+                        amount_found = (
+                            any(v in all_ocr_text for v in amount_variants) or
+                            any(v in ocr_clean    for v in amount_variants)
+                        )
+
+                        # ── UPI ID matching ───────────────────────────────────────────
+                        # OCR can mis-read '@' as '(a)', split across lines, or add spaces
+                        upi_lower  = PLATFORM_UPI.lower()
+                        upi_handle = upi_lower.split("@")[0]   # "kowsikah217"
+                        upi_bank   = upi_lower.split("@")[1]   # "okicici"
+                        upi_found = (
+                            upi_lower   in all_ocr_text or
+                            upi_lower   in ocr_clean    or
+                            (upi_handle in all_ocr_text and upi_bank in all_ocr_text)
+                        )
+
+                        print(f"amount_found={amount_found}, upi_found={upi_found}")
+                        print(f"amount_variants={amount_variants}")
+                        print(f"upi_handle='{upi_handle}', upi_bank='{upi_bank}'")
+
+                        if not amount_found or not upi_found:
                             msg = "ocr_fail"
                         else:
                             cursor.execute("""
@@ -3287,10 +3377,10 @@ def res_pay():
                             """, (amount_paid, utr_number, receipt_hash, rid))
                             conn.commit()
                             msg = "success"
-                            
+
                             bcdata = f"ID:{rid},Researcher ID:{uname}, Amount Paid:{amount_paid}, UTR:{utr_number}"
                             genenft(str(rid), uname, bcdata, 'payment')
-                            
+
                     except Exception as e:
                         print("OCR Verification Error:", e)
                         msg = "ocr_error"
